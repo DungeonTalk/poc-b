@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew:*)",
+      "WebFetch(domain:docs.convai.com)",
+      "WebFetch(domain:convai.com)",
+      "Bash(pkill:*)",
+      "Bash(mv:*)",
+      "Bash(move:*)",
+      "Bash(del:*)",
+      "Bash(rm:*)",
+      "Bash(curl:*)",
+      "Bash(touch:*)",
+      "Bash(cd:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": []
+  }
+}

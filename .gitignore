@@ -1,0 +1,50 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.logs
+*.iml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application
+application-local.properties
+application-dev.properties
+application-prod.properties
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Sensitive data
+**/secret*
+**/private*
+**/*key*
+**/*token*
+**/*password*
+
+# Runtime
+tmp/
+temp/
