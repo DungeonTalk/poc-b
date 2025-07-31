@@ -1,17 +1,13 @@
 package com.pocai.controller;
 
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.MediaType;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-import reactor.core.publisher.Mono;
 
-@RestController
+@Controller
 public class WebController {
 
-    @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
-    public Mono<Resource> index() {
-        return Mono.just(new ClassPathResource("static/index.html"));
+    @GetMapping("/")
+    public String index() {
+        return "index.html";
     }
 }

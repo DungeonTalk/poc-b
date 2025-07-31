@@ -12,7 +12,27 @@
       "Bash(curl:*)",
       "Bash(touch:*)",
       "Bash(cd:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(.gradlew.bat build)",
+      "Bash(gradlew:*)",
+      "Bash(cmd /c:*)",
+      "Bash(java:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(gradle:*)",
+      "Bash(find:*)",
+      "Bash(unzip:*)",
+      "Bash(ls:*)",
+      "Bash(./jdk-21.0.2/bin/java:*)",
+      "Bash(JAVA_HOME=./jdk-21.0.2 ./gradlew bootRun)",
+      "Bash(taskkill:*)",
+      "Bash(kill:*)",
+      "Bash(mkdir:*)",
+      "Bash(.\\gradlew.bat bootRun:*)",
+      "Bash(timeout:*)",
+      "Bash(start cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(cp:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

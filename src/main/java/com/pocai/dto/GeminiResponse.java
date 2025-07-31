@@ -27,6 +27,9 @@ public class GeminiResponse {
         return "";
     }
 
+    public void setText(String s) {
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Candidate {
         private Content content;

@@ -3,7 +3,7 @@ package com.pocai.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
 public class GeminiConfig {
@@ -15,10 +15,8 @@ public class GeminiConfig {
     private String geminiApiKey;
 
     @Bean
-    public WebClient geminiWebClient() {
-        return WebClient.builder()
-                .baseUrl(geminiApiUrl)
-                .build();
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 
     @Bean
