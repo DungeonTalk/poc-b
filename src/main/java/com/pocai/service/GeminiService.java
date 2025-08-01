@@ -15,6 +15,9 @@ import org.springframework.http.HttpHeaders;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import org.springframework.web.client.HttpServerErrorException;
 
 @Service
 public class GeminiService {
@@ -28,8 +31,14 @@ public class GeminiService {
     @Qualifier("geminiApiKey")
     private String apiKey;
 
+    @Autowired
+    private AutoRAGService autoRAGService;
+
     // 세션별 대화 히스토리 저장
     private final Map<String, StringBuilder> sessionHistory = new ConcurrentHashMap<>();
+    
+    // 세션별 세계관 정보 저장
+    private final Map<String, String> sessionWorldType = new ConcurrentHashMap<>();
 
     private static final String TRPG_SYSTEM_PROMPT = 
         "당신은 TRPG(테이블탑 롤플레잉 게임)의 던전마스터입니다. " +
@@ -70,6 +79,9 @@ public class GeminiService {
         "항상 한국어로 대답하며, 각 세계관의 분위기에 맞는 몰입감 있는 롤플레잉을 제공합니다. " +
         "현재 상황을 기억하고 일관성 있게 반응합니다.";
 
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long INITIAL_RETRY_DELAY = 1000; // 1초
+
     public GeminiResponse sendMessage(String userMessage, String sessionId) {
         logger.debug("Sending message to Gemini: {}", userMessage);
         
@@ -80,6 +92,10 @@ public class GeminiService {
         GeminiRequest.Content content = new GeminiRequest.Content(List.of(part));
         GeminiRequest request = new GeminiRequest(List.of(content));
 
+        return sendWithRetry(request, sessionId, userMessage, 0);
+    }
+
+    private GeminiResponse sendWithRetry(GeminiRequest request, String sessionId, String userMessage, int attempt) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -94,6 +110,25 @@ public class GeminiService {
             }
             
             return response;
+        } catch (HttpServerErrorException.ServiceUnavailable e) {
+            logger.warn("Gemini API 503 error (attempt {}/{}): {}", attempt + 1, MAX_RETRY_ATTEMPTS, e.getMessage());
+            
+            if (attempt < MAX_RETRY_ATTEMPTS - 1) {
+                long delay = INITIAL_RETRY_DELAY * (long) Math.pow(2, attempt);
+                logger.info("Retrying in {} ms...", delay);
+                
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return createErrorResponse("요청이 중단되었습니다.");
+                }
+                
+                return sendWithRetry(request, sessionId, userMessage, attempt + 1);
+            } else {
+                logger.error("Max retry attempts reached for 503 error");
+                return createErrorResponse("⚠️ 서버가 과부하 상태입니다. 잠시 후 다시 시도해주세요.");
+            }
         } catch (Exception error) {
             logger.error("Gemini API error: ", error);
             
@@ -104,21 +139,45 @@ public class GeminiService {
                  error.getMessage().contains("Too Many Requests") ||
                  error.getMessage().contains("RESOURCE_EXHAUSTED"))) {
                 
-                GeminiResponse errorResponse = new GeminiResponse();
-                errorResponse.setText("⚠️ API 할당량 초과: 잠시 후 다시 시도해주세요. 유료 요금제로 업그레이드하면 더 많이 사용할 수 있습니다.");
-                return errorResponse;
+                return createErrorResponse("⚠️ API 할당량 초과: 잠시 후 다시 시도해주세요. 유료 요금제로 업그레이드하면 더 많이 사용할 수 있습니다.");
             }
             
             // 기타 에러 시 기본 응답 반환
-            GeminiResponse errorResponse = new GeminiResponse();
-            errorResponse.setText("죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-            return errorResponse;
+            return createErrorResponse("죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
         }
+    }
+
+    private GeminiResponse createErrorResponse(String message) {
+        GeminiResponse errorResponse = new GeminiResponse();
+        errorResponse.setText(message);
+        return errorResponse;
     }
 
     private String buildPromptWithHistory(String userMessage, String sessionId) {
         StringBuilder prompt = new StringBuilder();
         prompt.append(TRPG_SYSTEM_PROMPT).append("\n\n");
+        
+        // 세계관 타입 감지 및 저장
+        String worldType = detectWorldType(userMessage, sessionId);
+        if (worldType != null) {
+            sessionWorldType.put(sessionId, worldType);
+        }
+        
+        // AutoRAG를 통한 컨텍스트 검색 (간단한 키워드만 추출)
+        String currentWorldType = sessionWorldType.get(sessionId);
+        String simpleQuery = extractSimpleQuery(userMessage);
+        String ragContext = autoRAGService.searchTRPGContext(simpleQuery, currentWorldType, sessionId);
+        String rules = autoRAGService.searchRules(simpleQuery, currentWorldType);
+        
+        // RAG 컨텍스트 추가
+        if (ragContext != null && !ragContext.isEmpty()) {
+            prompt.append("관련 컨텍스트:\n").append(ragContext).append("\n\n");
+        }
+        
+        // 관련 규칙 추가
+        if (rules != null && !rules.isEmpty()) {
+            prompt.append("관련 규칙:\n").append(rules).append("\n\n");
+        }
         
         // 세션 히스토리 추가
         if (sessionId != null && sessionHistory.containsKey(sessionId)) {
@@ -132,6 +191,46 @@ public class GeminiService {
         
         return prompt.toString();
     }
+    
+    private String detectWorldType(String userMessage, String sessionId) {
+        // 기존 세션의 세계관이 있으면 우선 사용
+        if (sessionWorldType.containsKey(sessionId)) {
+            return sessionWorldType.get(sessionId);
+        }
+        
+        String message = userMessage.toLowerCase();
+        
+        // 세계관 키워드 패턴 매칭
+        if (message.contains("좀비") || message.contains("아포칼립스") || message.contains("생존자") || message.contains("폐허")) {
+            return "apocalypse";
+        } else if (message.contains("사이버") || message.contains("해커") || message.contains("사이버펑크") || message.contains("네트워크")) {
+            return "cyberpunk";
+        } else if (message.contains("현대") || message.contains("도시") || message.contains("스마트폰") || message.contains("현실")) {
+            return "modern";
+        } else if (message.contains("마법") || message.contains("기사") || message.contains("드래곤") || message.contains("판타지")) {
+            return "fantasy";
+        }
+        
+        return null; // 감지되지 않으면 null 반환
+    }
+    
+    private String extractSimpleQuery(String userMessage) {
+        // 플레이어 행동 부분만 추출
+        if (userMessage.contains("플레이어 행동:")) {
+            String[] parts = userMessage.split("플레이어 행동:");
+            if (parts.length > 1) {
+                return parts[1].split("\n")[0].trim();
+            }
+        }
+        
+        // 전체 메시지가 짧으면 그대로 사용
+        if (userMessage.length() < 50) {
+            return userMessage;
+        }
+        
+        // 긴 메시지면 첫 50자만 사용
+        return userMessage.substring(0, 50).trim();
+    }
 
     private void updateSessionHistory(String sessionId, String userMessage, String aiResponse) {
         if (sessionId == null) return;
@@ -139,6 +238,16 @@ public class GeminiService {
         StringBuilder history = sessionHistory.computeIfAbsent(sessionId, k -> new StringBuilder());
         history.append("플레이어: ").append(userMessage).append("\n");
         history.append("던전마스터: ").append(aiResponse).append("\n");
+        
+        // AutoRAG에 세션 기록 저장 (비동기로 실행)
+        String worldType = sessionWorldType.get(sessionId);
+        if (worldType != null) {
+            try {
+                autoRAGService.indexSessionHistory(sessionId, userMessage, aiResponse, worldType);
+            } catch (Exception e) {
+                logger.warn("Failed to index session history to AutoRAG: {}", e.getMessage());
+            }
+        }
         
         // 히스토리가 너무 길어지면 앞부분 삭제 (토큰 제한 고려)
         if (history.length() > 2000) {

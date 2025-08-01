@@ -28,6 +28,7 @@ public class GeminiResponse {
     }
 
     public void setText(String s) {
+        
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

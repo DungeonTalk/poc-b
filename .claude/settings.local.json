@@ -32,7 +32,9 @@
       "Bash(start cmd:*)",
       "Bash(powershell:*)",
       "Bash(cp:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(./mvnw:*)"
     ],
     "deny": []
   }

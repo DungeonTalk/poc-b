@@ -1,5 +1,6 @@
 package com.pocai.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,5 +23,10 @@ public class GeminiConfig {
     @Bean
     public String geminiApiKey() {
         return geminiApiKey;
+    }
+    
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
     }
 }
